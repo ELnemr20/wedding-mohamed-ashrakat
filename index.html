@@ -1,38 +1,24 @@
-// ============================================================
-// GUESTBOOK - SHARED VERSION (Firebase Realtime Database)
-// Replace the old "Guestbook Wishes Logic" block in index.html
-// with everything below (from this comment down to before
-// "// Carousel buttons").
-// ============================================================
+// ---------- Guestbook Wishes Logic (Auto-Move Carousel) ----------
+const defaultWishes = []; // Start empty — wishes persist in localStorage
 
-// 1) PASTE YOUR FIREBASE DATABASE URL HERE (see instructions)
-const FIREBASE_DB_URL = "https://wedding-mohamed-ashrakat-default-rtdb.firebaseio.com"; // <-- CHANGE THIS
+function getStoredWishes() {
+  const saved = localStorage.getItem('wedding_wishes_mohamed_ashrakat');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return parsed;
+    } catch(e) {}
+  }
+  return defaultWishes;
+}
+
+function saveWishes(wishes) {
+  localStorage.setItem('wedding_wishes_mohamed_ashrakat', JSON.stringify(wishes));
+}
 
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// Fetch all wishes from Firebase (shared by everyone)
-async function getStoredWishes() {
-  try {
-    const res = await fetch(`${FIREBASE_DB_URL}/wishes.json`);
-    const data = await res.json();
-    if (!data) return [];
-    return Object.values(data).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  } catch (e) {
-    console.error('Could not load wishes:', e);
-    return [];
-  }
-}
-
-// Save one new wish to Firebase (visible to everyone after this)
-async function saveWish(wish) {
-  await fetch(`${FIREBASE_DB_URL}/wishes.json`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(wish)
-  });
 }
 
 let autoScrollTimer = null;
@@ -54,8 +40,8 @@ function startAutoScroll() {
   }, 3200);
 }
 
-async function renderWishes() {
-  const wishes = await getStoredWishes();
+function renderWishes() {
+  const wishes = getStoredWishes();
   const track = document.getElementById('wishes-track');
   const badge = document.getElementById('wishes-count-badge');
   if (!track) return;
@@ -99,20 +85,19 @@ const trackEl = document.getElementById('wishes-track');
 if (trackEl) {
   trackEl.addEventListener('mouseenter', () => isHovered = true);
   trackEl.addEventListener('mouseleave', () => isHovered = false);
-  trackEl.addEventListener('touchstart', () => isHovered = true, { passive: true });
-  trackEl.addEventListener('touchend', () => isHovered = false, { passive: true });
+  trackEl.addEventListener('touchstart', () => isHovered = true, {passive: true});
+  trackEl.addEventListener('touchend', () => isHovered = false, {passive: true});
 }
 
 // Form submission
 const wishForm = document.getElementById('wish-form');
 if (wishForm) {
-  wishForm.addEventListener('submit', async (e) => {
+  wishForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const nameInput = document.getElementById('guest-name');
     const relationInput = document.getElementById('guest-relation');
     const messageInput = document.getElementById('guest-message');
     const toast = document.getElementById('wish-success-toast');
-    const submitBtn = wishForm.querySelector('.form-submit-btn');
 
     const name = nameInput.value.trim();
     const relation = relationInput.value;
@@ -120,31 +105,48 @@ if (wishForm) {
 
     if (!name || !message) return;
 
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Posting...'; }
-
+    const currentWishes = getStoredWishes();
     const newWish = {
       name,
       relation,
       message,
       stars: "★★★★★ 5.0",
-      date: "Just now",
-      timestamp: Date.now()
+      date: "Just now"
     };
 
-    try {
-      await saveWish(newWish);
-      await renderWishes();
-      wishForm.reset();
+    currentWishes.unshift(newWish);
+    saveWishes(currentWishes);
+    renderWishes();
 
-      if (toast) {
-        toast.style.display = 'block';
-        setTimeout(() => { toast.style.display = 'none'; }, 4000);
-      }
-      if (trackEl) trackEl.scrollTo({ left: 0, behavior: 'smooth' });
-    } catch (err) {
-      alert('Sorry, could not post your wish. Please check your internet and try again.');
-    } finally {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✦ Post Wish for the Couple ✦'; }
+    wishForm.reset();
+
+    if (toast) {
+      toast.style.display = 'block';
+      setTimeout(() => {
+        toast.style.display = 'none';
+      }, 4000);
+    }
+
+    if (trackEl) {
+      trackEl.scrollTo({ left: 0, behavior: 'smooth' });
     }
   });
 }
+
+// Carousel buttons
+const prevBtn = document.getElementById('wish-prev');
+const nextBtn = document.getElementById('wish-next');
+
+if (prevBtn && trackEl) {
+  prevBtn.addEventListener('click', () => {
+    trackEl.scrollBy({ left: -320, behavior: 'smooth' });
+  });
+}
+
+if (nextBtn && trackEl) {
+  nextBtn.addEventListener('click', () => {
+    trackEl.scrollBy({ left: 320, behavior: 'smooth' });
+  });
+}
+
+renderWishes();
